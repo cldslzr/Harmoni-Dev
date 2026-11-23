@@ -2,6 +2,7 @@ import numpy as np
 import json
 
 import heapq
+from pathlib import Path
 
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -14,7 +15,8 @@ COSINE_THRESHOLD = 0.2
 
 # rag_model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B")
 # rag_model = SentenceTransformer("google/embeddinggemma-300m")
-rag_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+# rag_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')  # English-only — avoid for French
+rag_model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
 
 
 def attach_embeddings(feature: ContextualFeature) -> ContextualFeature:
@@ -151,3 +153,77 @@ def features_retriever(question, conn, user_id, last_interaction=None) -> list:
             memory.append(feature)
 
     return memory
+
+
+# ---------------------------------------------------------------------------
+# Context file retriever — dynamically loads relevant JSON files
+# ---------------------------------------------------------------------------
+
+_DEFAULT_THRESHOLD = 0.35
+_context_file_index = None  # cache global, initialisé au premier appel
+
+
+def _build_context_file_index(config: dict) -> list:
+    """Builds and caches embeddings for each context file description."""
+    index = []
+    files = config.get("context_files", {}).get("files", {})
+    for key, entry in files.items():
+        desc_emb = rag_model.encode(entry["description"], normalize_embeddings=True)
+        index.append({
+            "key": key,
+            "path": entry["path"],
+            "description": entry["description"],
+            "similarity_threshold": entry.get("similarity_threshold"),
+            "embedding": desc_emb,
+        })
+    return index
+
+
+def get_context_file_index(config: dict) -> list:
+    """Returns the context file index using lazy initialization."""
+    global _context_file_index
+    if _context_file_index is None:
+        _context_file_index = _build_context_file_index(config)
+    return _context_file_index
+
+
+def context_files_retriever(question: str, config: dict) -> str:
+    """
+    Selects the context files relevant to the given question.
+    Returns their concatenated content as a string, or an empty string if nothing is relevant.
+    -----
+    Args:
+        question (str): The user's question or message.
+        config (dict): The configuration loaded from config.yaml.
+    Returns:
+        str: The content of the relevant context files, or '' if none match.
+    """
+    default_threshold = config.get("context_files", {}).get("similarity_threshold", _DEFAULT_THRESHOLD)
+    index = get_context_file_index(config)
+    if not index:
+        return ""
+
+    q_emb = rag_model.encode(question, normalize_embeddings=True)
+    loaded_contexts = []
+
+    for entry in index:
+        threshold = entry["similarity_threshold"]
+        if threshold is None:
+            threshold = default_threshold
+        sim = cosine_similarity(
+            q_emb.reshape(1, -1),
+            entry["embedding"].reshape(1, -1)
+        ).flatten()[0]
+
+        print(f"[context_files_retriever] {entry['key']}: sim={sim:.3f} (threshold={threshold})")
+
+        if sim >= threshold:
+            path = Path(entry["path"])
+            if path.exists():
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                loaded_contexts.append(
+                    f"[{entry['key']}]\n{json.dumps(data, ensure_ascii=False, indent=2)}"
+                )
+
+    return "\n\n".join(loaded_contexts)

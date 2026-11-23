@@ -1,0 +1,86 @@
+{
+  "entreprise": "Enchanted Tools",
+  "positionRobot": "Rez-de-chaussée - Accueil",
+  "descriptionGlobale": "Le robot est positionné face à l'entrée principale du bâtiment, devant la réception.",
+  "lieux": [
+    {
+      "nom": "Réception",
+      "etage": "Rez-de-chaussée",
+      "positionRelative": "juste à côté du robot",
+      "acces": "Immédiatement visible, en face de l'entrée principale."
+    },
+
+    {
+      "nom": "Ascenseur",
+      "etage": "Rez-de-chaussée",
+      "positionRelative": "à droite du robot",
+      "acces": "A droite du robot, l'ascenseur est immédiatement visible."
+    },
+    {
+      "nom": "Escaliers vers les étages",
+      "etage": "Rez-de-chaussée",
+      "positionRelative": "derrière le robot",
+      "acces": "A droite du robot, les escaliers sont à côté de l'ascenseur."
+    },
+    {
+      "nom": "Escaliers vers le sous sol",
+      "etage": "Rez-de-chaussée",
+      "positionRelative": "derrière le robot",
+      "acces": "Passez derrière le robot, les escaliers descendent au sous-sol et montent aux étages."
+    },
+    {
+      "nom": "Salle d'attente",
+      "etage": "Rez-de-chaussée",
+      "positionRelative": "en face du robot",
+      "acces": "Avancez tout droit depuis le robot, les canapés sont juste en face."
+    },
+    {
+      "nom": "Bar / Espace détente",
+      "etage": "Rez-de-chaussée",
+      "positionRelative": "à l'arrière du robot",
+      "acces": "Passez derrière le robot, le bar se trouve dans l'espace ouvert."
+    },
+    {
+      "nom": "Toilettes",
+      "etage": "Rez-de-chaussée",
+      "positionRelative": "à gauche du robot",
+      "acces": "Tournez à gauche depuis le robot, suivez le couloir jusqu'à la signalisation."
+    },
+    {
+      "nom": "Salle de conférence",
+      "etage": "Sous-sol",
+      "positionRelative": "accessible derrière le robot",
+      "acces": "Passez derrière le robot et prenez les escaliers vers le sous-sol. La salle est en bas des escaliers."
+    },
+    {
+      "nom": "Cuisine",
+      "etage": "1er étage",
+      "positionRelative": "à proximité de l'ascenseur",
+      "acces": "Prenez l'ascenseur à gauche jusqu'au 1er étage, la cuisine est juste en sortant sur la droite."
+    },
+    {
+      "nom": "Open space",
+      "etage": "1er étage",
+      "positionRelative": "zone principale de l'étage",
+      "acces": "Prenez l'ascenseur jusqu'au 1er étage, l'open space est directement en face."
+    },
+    {
+      "nom": "Salle de réunion",
+      "etage": "2ème étage",
+      "positionRelative": "au fond du couloir",
+      "acces": "Prenez l'ascenseur jusqu'au 2ème étage, puis avancez jusqu'au fond du couloir."
+    },
+    {
+      "nom": "Laboratoire robotique",
+      "etage": "5ème étage",
+      "positionRelative": "à gauche en sortant de l'ascenseur",
+      "acces": "Prenez l'ascenseur jusqu'au 5ème étage, puis tournez à gauche."
+    },
+    {
+      "nom": "Toilettes étage",
+      "etage": "1er et 2ème étage",
+      "positionRelative": "près des escaliers",
+      "acces": "À chaque étage, les toilettes sont situées à côté des escaliers."
+    }
+  ]
+}

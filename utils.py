@@ -177,7 +177,7 @@ def display_answer(answer, memory_user, retrieved_features_names, generation_tim
             {feature_table_header()}
     """
 
-    for i, feature in enumerate([f for f in memory_user if f["name"] in retrieved_features_names]):
+    for i, feature in enumerate([f for f in (memory_user or []) if f["name"] in retrieved_features_names]):
         border = "border-top: 3px solid #bbbbbb;" if i == 0 else ""
         description = f"<br/><i style='color: #aaa;'>({feature['description']})</i>" if feature["type"] == "contextual" else ""
         content = feature.get("value", "N/A") or "N/A"

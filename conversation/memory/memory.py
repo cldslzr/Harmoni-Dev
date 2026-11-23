@@ -11,21 +11,16 @@ Functions:
 
 #--------------------------------------- Imports ---------------------------------------#
 
-import os
 import json
 import sqlite3
 
 import torch
-from transformers import SiglipVisionModel, SiglipImageProcessor
-from PIL import Image
-from torchvision.transforms import Compose, ToTensor, Normalize, Resize
-import cv2
 
 import numpy as np
 
-from config.settings import RECOGNITION_THRESHOLD 
 from config.utils import suppress_stdout
 
+from config.settings import SIMILARITY_THERESHOLD
 
 #--------------------------------------- Functions ---------------------------------------#
 
@@ -152,38 +147,8 @@ def update_memory(new_memory_object, current_user, conn, database=None):
         conn.close()
     return memory_retriever(current_user, conn)
 
-
-def get_embeddings(img, model_config):
-    if model_config["name"] == "ULIP-p16":
-        model = model_config["model"]
-        processor = model_config["processor"]
-
-        inputs = processor(images=img, return_tensors="pt")
-
-        with torch.no_grad():
-            outputs = model(**inputs)
-            embedding = outputs.pooler_output  # shape: [1, hidden_dim]
-
-        embedding = torch.nn.functional.normalize(embedding, dim=-1)
-        return embedding
-    
-    elif model_config["name"] == "INSIGHTFACE":
-        model = model_config["model"]
-        img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-
-        with suppress_stdout():
-            embedding = model.get_feat(img)
-
-        embedding = torch.tensor(embedding)
-        # Normalize the embedding
-        embedding = torch.nn.functional.normalize(embedding, dim=-1)
-        return embedding
-    
-    else:
-        raise ValueError("Unknown model name provided for embedding extraction.")
-
  
-def user_retriever(img, conn, model_config, database=None):
+def user_retriever(embedding, conn, database=None):
     """
     Retrieve or create a user based on face encodings.
     This function checks if the user already exists in the database based on the provided encodings.
@@ -191,7 +156,7 @@ def user_retriever(img, conn, model_config, database=None):
     If no user is found, it creates a new user with the provided encodings and the associated table, and returns the new user ID and an empty memory.
     -----
     Args:
-        encodings (list): A list of face encodings for the user.
+        embedding: Face embedding for the user (np.ndarray or torch.Tensor).
         conn (sqlite3.Connection): The database connection object.
     Returns:
         tuple: A tuple containing the user ID and their memory.
@@ -201,30 +166,38 @@ def user_retriever(img, conn, model_config, database=None):
         conn = sqlite3.connect(database)
         new_conn = True
 
-    embedding = get_embeddings(img, model_config)
-
     if conn is None:
         raise ValueError("A database connection is required.")
     cursor = conn.cursor()
 
-    # Check if the user already exists based on embeddings
+    # Normalize embedding to a torch.Tensor, since it may come in as a
+    # np.ndarray (e.g. InsightFace's face.embedding) or already as a tensor
+    if isinstance(embedding, np.ndarray):
+        embedding = torch.tensor(embedding, dtype=torch.float32)
+
     cursor.execute("SELECT user_id, embeddings FROM user_embeddings WHERE embeddings IS NOT NULL")
     embeddings_dict = {user_id: np.frombuffer(blob, dtype=np.float32) for user_id, blob in cursor.fetchall()}
 
     known_user_embeddings = list(embeddings_dict.values())
-    if known_user_embeddings != []:
-        known_user_embeddings = torch.stack([torch.tensor(e) for e in known_user_embeddings])
+    if known_user_embeddings:
+        device = embedding.device
+        known_user_embeddings = torch.stack([
+            torch.tensor(e, device=device, dtype=torch.float32)
+            for e in known_user_embeddings
+        ])
 
         cos = torch.nn.CosineSimilarity(dim=-1)
-        similarities = cos(embedding, known_user_embeddings)
+        similarities = cos(embedding.unsqueeze(0), known_user_embeddings)
 
         best_score, best_idx = torch.max(similarities, dim=0)
-        if best_score.item() > 0.5: #TODO: remake this a config variable
-            # If a user is found, return the user ID and their memory
+        print(f"Best similarity: {best_score.item():.3f}")
+
+        if best_score.item() > 0.5:  # TODO: config variable, validate threshold empirically
             user_id = list(embeddings_dict.keys())[best_idx.item()]
             try:
                 user_memory = memory_retriever(user_id, conn)
-            except sqlite3.OperationalError:
+            except sqlite3.OperationalError as e:
+                print(f"[!] Could not retrieve memory for {user_id}: {e}")
                 user_memory = ""
             return user_id, user_memory
 
@@ -233,18 +206,20 @@ def user_retriever(img, conn, model_config, database=None):
     user_number = cursor.fetchone()[0] + 1
     new_user_id = f"user{user_number}"
 
-    # Insert the new user into the user_embeddings table
-    embedding_blob = np.array(embedding, dtype=np.float32).tobytes()
+    embedding_blob = embedding.detach().cpu().numpy().astype(np.float32).tobytes()
     cursor.execute(
         "INSERT INTO user_embeddings (user_id, embeddings) VALUES (?, ?)",
         (new_user_id, embedding_blob)
     )
 
+    # NOTE: one table per user won't scale well as the user base grows.
+    # Consider a single shared table (user_id, type, name, description,
+    # value, embeddings) with an index on user_id. Not fixing now.
     cursor.execute(
+        # safe: new_user_id is internally generated, never from user input
         f"CREATE TABLE IF NOT EXISTS {new_user_id} (type TEXT, name TEXT, description TEXT, value TEXT, embeddings BLOB)"
     )
 
-    #create empty slots for the primary features
     primary_features = {
         "nom": "Les prénoms et noms de l'utilisateur.",
         "age": "L'âge de l'utilisateur.",
@@ -253,6 +228,7 @@ def user_retriever(img, conn, model_config, database=None):
     }
     for feature, description in primary_features.items():
         cursor.execute(
+            # safe: new_user_id is internally generated, never from user input
             f"INSERT INTO {new_user_id} (type, name, description, value, embeddings) VALUES (?, ?, ?, ?, ?)",
             ("primary", feature, description, '', None),
         )
@@ -262,5 +238,4 @@ def user_retriever(img, conn, model_config, database=None):
     conn.commit()
     if new_conn:
         conn.close()
-        
     return new_user_id, user_memory

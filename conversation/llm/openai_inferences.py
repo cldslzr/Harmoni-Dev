@@ -16,6 +16,7 @@ import os
 import yaml
 import sqlite3
 import concurrent.futures
+import re
 
 import numpy as np
 from openai import OpenAI
@@ -25,9 +26,15 @@ sys.path.append(root_folder_path)
 
 from config.settings import API_KEY, LEN_HISTORY
 from memory.models import LongTermMemory, FeaturesNames
-from llm.prompts import add_feature_prompt, modify_feature_prompt, reply_prompt, feature_identification_prompt
+from llm.prompts_fr import add_feature_prompt, modify_feature_prompt, feature_identification_prompt, miroka_prompt
 from llm.retriever import features_retriever, attach_embeddings
+from llm.temporal_context import build_temporal_context
 
+
+def _strip_leading_timestamp(text):
+    if not isinstance(text, str):
+        return text
+    return re.sub(r'^\[[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}\]\s*', '', text)
 
 # Initialize LLM clients 
 with open("config/config.yaml", "r") as file:
@@ -68,7 +75,7 @@ else:
 # ANSWER GENERATION FUNCTION #
 ##############################
 
-def generate_answer(question, history, context, conn=None, current_user=None, visual_profile=None, reply_prompt=reply_prompt, retriever=True, verbose=True):
+def generate_answer(question, history, context, conn=None, current_user=None, visual_profile=None, reply_prompt=miroka_prompt, retriever=True, verbose=True):
     """
     Ask the LLM a question and retrieve the answer along with updated memory.
     This function prepares the context and session history, retrieves relevant features from the user's memory,
@@ -155,21 +162,114 @@ def generate_answer(question, history, context, conn=None, current_user=None, vi
             context
         )
     }
+    temporal_prompt = {
+        "role": "system",
+        "content": build_temporal_context(question, context),
+    }
     
     # Generate the answer using the LLM
     now = time.time()
     completion = reply_client.chat.completions.create(
         model=reply_model,
-        messages=[reply_prompt, context_prompt, ltm, *stm, {"role": "user", "content": question}],
+        messages=[reply_prompt, context_prompt, temporal_prompt, ltm, *stm, {"role": "user", "content": question}],
+        max_tokens=150,
     )
+    
     generation_time = time.time() - now
 
     if verbose:
-        print(f"Generation time: {generation_time:.2f} seconds")
-        print(f"Retrieval time: {retrival_time:.2f} seconds")
+        print(f"GENERATION TIME : {generation_time:.2f} seconds")
+        print(f"RETREIVAL TIME : {retrival_time:.2f} seconds")
     
     # Parse the response from the LLM
-    return completion.choices[0].message.content, retrieved_features_names
+    content = completion.choices[0].message.content
+    return _strip_leading_timestamp(content), retrieved_features_names
+
+
+####################################
+# STREAMING ANSWER GENERATION      #
+####################################
+
+def generate_answer_stream(question, history, context, conn=None, current_user=None, visual_profile=None, reply_prompt=miroka_prompt, retriever=True, verbose=True):
+    """
+    Streaming version of generate_answer.
+    Returns (retrieved_features_names, stream) where stream is an OpenAI streaming
+    completion object that the caller iterates to receive tokens incrementally.
+    """
+    stm = deque(history, maxlen=LEN_HISTORY)
+
+    retrival_time = 0.0
+    if retriever:
+        now = time.time()
+        retrieved_memory = features_retriever(question, conn=conn, user_id=current_user)
+        retrival_time = time.time() - now
+        retrieved_features_names = [feature["name"] for feature in retrieved_memory]
+        if verbose:
+            print(f"Retrieved features: {retrieved_features_names}")
+        memory = retrieved_memory
+    else:
+        memory = []
+        cursor = conn.cursor()
+        retrieved_features_names = []
+        cursor.execute(f"SELECT type, name, description, value FROM {current_user}")
+        rows = cursor.fetchall()
+        for type, name, description, value in rows:
+            feature = {
+                "type": type,
+                "name": name,
+                "description": description,
+                "value": value.split(";") if value else []
+            }
+            memory.append(feature)
+            retrieved_features_names.append(name)
+
+    if visual_profile:
+        if "emotion" in visual_profile and visual_profile["emotion"] is not None:
+            emotion = visual_profile["emotion"]
+            memory.insert(4, {
+                "type": "contextual",
+                "name": "emotion",
+                "description": "Émotion actuelle de l'utilisateur, détectée à partir de son expression faciale.",
+                "value": [emotion]
+            })
+        if memory[1]["value"] is not None:
+            if 'age' in visual_profile and visual_profile["age"] is not None:
+                memory[1]["value"] = [visual_profile["age"]]
+        if memory[2]["value"] is not None:
+            if 'gender' in visual_profile and visual_profile["gender"] is not None:
+                memory[2]["value"] = [visual_profile["gender"]]
+
+    ltm = {
+        "role": "system",
+        "content": [{
+            "type": "text",
+            "text": json.dumps(memory, indent=2, ensure_ascii=False)
+        }]
+    }
+
+    if context is None:
+        context = ''
+
+    context_prompt = {
+        "role": "system",
+        "content": context
+    }
+    temporal_prompt = {
+        "role": "system",
+        "content": build_temporal_context(question, context),
+    }
+
+    if verbose:
+        print(f"RETREIVAL TIME : {retrival_time:.2f} seconds")
+
+    stream = reply_client.chat.completions.create(
+        model=reply_model,
+        messages=[reply_prompt, context_prompt, temporal_prompt, ltm, *stm, {"role": "user", "content": question}],
+        max_tokens=150,
+        stream=True,
+    )
+
+    return retrieved_features_names, stream
 
 
 ##########################
@@ -228,7 +328,7 @@ def update_memory_llm(user_question, conn=None, current_user=None, database=None
     # Add the contextual features
     cursor.execute(f"SELECT name, description, value FROM {current_user} WHERE type = 'contextual'")
     rows = cursor.fetchall()
-    for row in rows:    
+    for row in rows:
         name, description, value = row
         feature = {
             "type": "contextual",

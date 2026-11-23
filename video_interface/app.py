@@ -16,57 +16,69 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
+warnings.filterwarnings("ignore", "pkg_resources is deprecated", category=UserWarning)
 
+import asyncio
+import queue
 import threading
 import time
 import tempfile
 import shutil
 import sqlite3
 import json
-import base64
 import io
-
-from collections import deque
+from datetime import datetime
+import os
+from pathlib import Path
 
 import numpy as np
-import cv2
-import matplotlib.pyplot as plt
 import yaml
 
 from PIL import Image
 
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, Form, UploadFile, File
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse
 
 from config import models, get_face_embedding_model
 from config.settings import LEN_HISTORY
 
-from conversation.llm.openai_inferences import generate_answer, update_memory_llm
-from conversation.memory.memory import user_retriever, update_memory, memory_retriever
-from conversation.memory.utils import create_table, empty_database
+from conversation.llm.openai_inferences import generate_answer, generate_answer_stream, update_memory_llm
+from conversation.llm.retriever import context_files_retriever, get_context_file_index
+from conversation.memory.memory import user_retriever, update_memory
+from conversation.memory.utils import (
+    add_conversation_turn,
+    clear_conversation_history,
+    create_table,
+    empty_database,
+    get_conversation_history,
+    timestamp_conversation_content,
+)
 
 from vision.detection import detect_speaking_face
-from vision.audio import extract_and_transcribe_audio
+from vision.audio import extract_audio, transcribe_audio
 from vision.emotions import detect_emotions
 
-import utils
+import cv2
 
 #--------------------------------------- Configuration ---------------------------------------#
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    warmup_models()
+    yield
+
 # Init FastAPI app
-app = FastAPI()
-app.mount("/static", StaticFiles(directory="video_interface/static"), name="static")
+app = FastAPI(lifespan=lifespan)
 
 # Global variables for user session management
 # Load models from vision module
-model = models.YOLO_FACE_MODEL
 stt_model = models.WHISPER_MODEL
 emotion_model = models.EMOTION_MODEL
 emotion_processor = models.EMOTION_PROCESSOR
-insightface_model = models.INSIGHTFACE_MODEL
 
 # Load user retriever model and processor
 user_retriever_config = get_face_embedding_model("INSIGHTFACE")
@@ -77,24 +89,57 @@ conn = sqlite3.connect(database)
 create_table(conn)   
 conn.close() 
 
-current_session = []
 current_user_image = None
-html_blocks = []
-current_context = ""
+memory_user = None
+current_context = ""  # contexte statique optionnel (peut être surchargé via /set_context)
 
 config_path = "config/config.yaml"
+with open(config_path, "r", encoding="utf-8") as _f:
+    config_data = yaml.safe_load(_f)
+
+# Pré-calcul des embeddings des fichiers de contexte au démarrage
+get_context_file_index(config_data)
+
+
+#--------------------------------------- Model Warmup ---------------------------------------#
+
+def warmup_models():
+    """Run dummy inference through all models to force GPU memory allocation."""
+    import torch
+    print("[Warmup] Pre-loading all models into VRAM...", flush=True)
+    start = time.time()
+
+    # 1. InsightFace face detection (INSIGHTFACE_MODEL in vision/detection.py)
+    from vision.detection import INSIGHTFACE_MODEL
+    test_path = Path(__file__).resolve().parent / "test.png"
+    print(f"Loading {test_path}", flush=True)
+    test_img = cv2.imread(str(test_path))
+
+    assert test_img is not None, "Impossible de charger test.png"
+    INSIGHTFACE_MODEL.get(test_img)
+    print(f"  [Warmup] INSIGHTFACE_MODEL (face detection, face embeddings) ready", flush=True)
+
+    # 2. Whisper (transcription)
+    import whisper
+    dummy_audio = whisper.pad_or_trim(torch.zeros(16000, dtype=torch.float32))
+    mel = whisper.log_mel_spectrogram(dummy_audio).to(stt_model.device)
+    stt_model.decode(mel.unsqueeze(0), whisper.DecodingOptions(fp16=False))
+    print(f"  [Warmup] Whisper (transcription) ready", flush=True)
+
+    # 3. Emotion model
+    dummy_pil = Image.fromarray(np.zeros((48, 48, 3), dtype=np.uint8))
+    inputs = emotion_processor(images=dummy_pil, return_tensors="pt")
+    device = next(emotion_model.parameters()).device
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    with torch.inference_mode():
+        emotion_model(**inputs)
+    print(f"  [Warmup] Emotion model ready", flush=True)
+
+    elapsed = time.time() - start
+    print(f"[Warmup] All models loaded into VRAM in {elapsed:.2f}s", flush=True)
 
 
 #--------------------------------------- Routes ---------------------------------------#
-
-@app.get("/", response_class=HTMLResponse)
-async def get_home():
-    """
-    Serve the main HTML page for the application.
-    """
-    with open("video_interface/static/index.html", "r") as f:
-        return f.read()
-    
 
 @app.get("/config")
 def get_config():
@@ -103,130 +148,313 @@ def get_config():
     return config 
 
 
-@app.post("/set_video")
-async def set_video(video: UploadFile = File(...)):
+@app.post("/process")
+async def process_video(video: UploadFile = File(...), audio: UploadFile = File(None)):
     """
-    Handle the user's video input, extract audio, transcribe it, and update the user's memory.
+    Handle the user's video input, detect the speaking user, transcribe speech,
+    detect emotions, retrieve user profile, generate an answer, and update memory.
+    If a separate audio file is provided, use it directly; otherwise extract from video.
     """
-    global html_blocks, current_user_image
-    html_blocks = []  
+    print("PROCESS ENDPOINT ENTRANCE")
+    endpoint_start_time = time.time()
+
+    global current_user_image, memory_user
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         shutil.copyfileobj(video.file, tmp)
         tmp_path = tmp.name
 
+    if audio:
+        # Audio provided separately — run face detection and transcription in parallel
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_audio:
+            shutil.copyfileobj(audio.file, tmp_audio)
+            audio_file = tmp_audio.name
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            detectface_start_time = time.time()
+            future_face = executor.submit(detect_speaking_face, tmp_path)
+
+            tr_start_time = time.time()
+            future_transcript = executor.submit(transcribe_audio, audio_file, stt_model)
+
+            speaking_face_embedding, speaking_face_image = future_face.result()
+            print(f"DETECT SPEAKING FACE EXECUTION TIME : {time.time() - detectface_start_time:.4f} seconds")
+
+            transcript = future_transcript.result()
+            print(f"TRANSCRIPTION EXECUTION TIME : {time.time() - tr_start_time:.4f} seconds")
+
+        os.remove(audio_file)
+    else:
+        # No separate audio — extract from video
+        audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future_audio_extract = executor.submit(extract_audio, tmp_path, audio_file)
+
+            detectface_start_time = time.time()
+            speaking_face_embedding, speaking_face_image = detect_speaking_face(tmp_path)
+            print(f"DETECT SPEAKING FACE EXECUTION TIME : {time.time() - detectface_start_time:.4f} seconds")
+
+            future_audio_extract.result()  # Ensure extraction is done
+
+        tr_start_time = time.time()
+        transcript = transcribe_audio(audio_file, stt_model)
+        print(f"TRANSCRIPTION EXECUTION TIME : {time.time() - tr_start_time:.4f} seconds")
+        os.remove(audio_file)
+
+    if speaking_face_embedding is None or speaking_face_image is None:
+        raise HTTPException(status_code=422, detail="No face detected in the video.")
+
+    transcript_timestamp = datetime.now()
+    timestamped_transcript = timestamp_conversation_content(transcript, transcript_timestamp)
+
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        future_face = executor.submit(detect_speaking_face, tmp_path, save_frames=True)
-        future_transcript = executor.submit(extract_and_transcribe_audio, tmp_path, stt_model)
 
-        speaking_face_row, grid, probs = future_face.result()
-        transcript = future_transcript.result()
+        # TODO: Update emotion detection
+        # emo_start_time = time.time()
+        # future_emotion = executor.submit(detect_emotions, speaking_face_row, emotion_model, emotion_processor)
 
-    html_blocks.append(utils.display_image_grid_html(grid, probs, np.argmax(probs), jupyter=False))
+        ur_start_time = time.time()
+        future_user = executor.submit(user_retriever, speaking_face_embedding, None, database)
 
-    user_image = speaking_face_row[0]
-    
-    with ThreadPoolExecutor(max_workers=2) as executor:
+        # emotion, prob, emotions, probs = future_emotion.result()
+        # print(f"EMOTION DETECTION EXECUTION TIME : {time.time() - emo_start_time:.4f} seconds")
 
-        future_emotion = executor.submit(detect_emotions, speaking_face_row, emotion_model, emotion_processor)
-        future_user = executor.submit(user_retriever, user_image, None, user_retriever_config, database)
-
-        emotion, prob, emotions, probs = future_emotion.result()
         detected_user, memory_user = future_user.result()
+        print(f"USER RETRIEVER EXECUTION TIME : {time.time() - ur_start_time:.4f} seconds")
 
-    # Convert user_image (numpy array) to base64 string for sharing via JSON
-    if isinstance(user_image, np.ndarray):
-        img_pil = Image.fromarray(user_image)
-    elif isinstance(user_image, Image.Image):
-        img_pil = user_image.convert("RGB")  # Ensure it's in RGB format  
 
-    user_image = np.array(user_image)
-    current_user_image = user_image
+    conn_history = sqlite3.connect(database)
+    try:
+        session_history = get_conversation_history(detected_user, conn_history, LEN_HISTORY)
+    finally:
+        conn_history.close()
 
-    html_blocks.append(utils.user_memory_to_html(memory_user, user_image, f"Detected User: {detected_user}", jupyter=False))
-    html_blocks.append(utils.display_pie_chart(emotions, probs, emotion, prob, jupyter=False))
-    html_blocks.append(utils.display_sequence_with_transcription(speaking_face_row, transcript, jupyter=False))
-
-    buf = io.BytesIO()
-    img_pil.save(buf, format='PNG')
-    img_bytes = buf.getvalue()
-    user_image_base64 = base64.b64encode(img_bytes).decode('utf-8')
-
-    return {
-        "user_image": user_image_base64,
-        "detected_user": detected_user,
-        "profile": memory_user,
-        "emotion": emotion,
-        "transcript": transcript
-    }
-
-@app.post("/answer")
-async def answer_question(
-            emotion: str = Form(...),
-            current_user: str = Form(...),
-            question: str = Form(...)
-        ):
-    """
-    Process the user's question, update their memory, and return the response.
-    """
-    global current_session, html_blocks, current_user_image
-    # Update memory with emotion and question
+    # Start memory update thread immediately once transcript and detected_user are available
     def update_user_memory():
         start_time = time.time()
         conn_thread = sqlite3.connect(database)
-
         try:
-            new_memory_object = update_memory_llm(question, conn_thread, current_user, stm=current_session)
+            new_memory_object = update_memory_llm(timestamped_transcript, conn_thread, detected_user, stm=session_history)
             global memory_user
-            memory_user = update_memory(new_memory_object, current_user, conn_thread)
+            memory_user = update_memory(new_memory_object, detected_user, conn_thread)
         finally:
-            conn_thread.close()  # Ensure the connection is closed after use
+            conn_thread.close()
+        print(f"MEMORY UPDATE TIME : {time.time() - start_time:.2f} seconds")
 
-        end_time = time.time()
-        print(f"Memory updated in {end_time - start_time:.2f} seconds")
-
-    memory_thread = threading.Thread(target=update_user_memory)
+    memory_thread = threading.Thread(target=update_user_memory, daemon=True)
     memory_thread.start()
 
     visual_profile = {
-        "emotion": emotion,
+        "emotion": None,
         "gender": None,
         "age": None,
     }
 
-    context = current_context
+    # Dynamically retrieves the relevant context files for this question
+    dynamic_context = context_files_retriever(transcript, config_data)
+    combined_context = "\n\n".join(filter(None, [current_context, dynamic_context]))
 
-    conn = sqlite3.connect(database)
-    # Generate the answer using the LLM
-    start_time = time.time()
-    answer, retrieved_features = generate_answer(question, current_session, context, conn, current_user, visual_profile)
-    end_time = time.time()
-    memory_thread.join()
+    print(f"COMBINED CONTEXT:\n{combined_context}")
 
+    # Run generate_answer in background while building HTML blocks and encoding the image
+    def _run_generate_answer():
+        _conn = sqlite3.connect(database)
+        try:
+            t = time.time()
+            result = generate_answer(timestamped_transcript, session_history, combined_context, _conn, detected_user, visual_profile)
+            return result, time.time() - t
+        finally:
+            _conn.close()
 
-    conn.close()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future_answer = executor.submit(_run_generate_answer)
 
-    current_session.append({"role": "user", "content": question})
-    current_session.append({"role": "assistant", "content": answer})
+        (answer, retrieved_features), llm_time = future_answer.result()
 
-    html_blocks.append(utils.display_answer(answer, memory_user, retrieved_features, end_time - start_time, jupyter=False))
-    html_blocks.append(utils.user_memory_to_html(memory_user, current_user_image, f"Memory updated for {current_user}", title="Updated Memory", jupyter=False))
+    conn_history = sqlite3.connect(database)
+    try:
+        add_conversation_turn(detected_user, transcript, answer, conn_history, user_timestamp=transcript_timestamp)
+    finally:
+        conn_history.close()
 
-    html_text = ('\n').join([str(block) for block in html_blocks])
+    print("PROCESS ENDPOINT DONE (memory update continues in background)")
+    print(f"PROCESS ENDPOINT EXECUTION TIME : {time.time() - endpoint_start_time:.4f} seconds")
 
     return {
-        "answer": answer,
+        "detected_user": detected_user,
         "profile": memory_user,
-        "logs": html_text,
+        # "emotion": emotion,
+        "transcript": transcript,
+        "answer": answer,
     }
 
+@app.post("/process_stream")
+async def process_video_stream(video: UploadFile = File(...), audio: UploadFile = File(None)):
+    """
+    Streaming version of /process for terminal clients.
+    Yields newline-delimited JSON events:
+      {"type": "info", "detected_user": "...", "emotion": "...", "transcript": "..."}
+      {"type": "token", "content": "..."}  (one per LLM token)
+      {"type": "done"}
+    """
+    print("PROCESS_STREAM ENDPOINT ENTRANCE")
+    endpoint_start_time = time.time()
+
+    global current_user_image, memory_user
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        shutil.copyfileobj(video.file, tmp)
+        tmp_path = tmp.name
+
+    if audio:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_audio:
+            shutil.copyfileobj(audio.file, tmp_audio)
+            audio_file = tmp_audio.name
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            detectface_start_time = time.time()
+            future_face = executor.submit(detect_speaking_face, tmp_path, save_frames=True)
+
+            tr_start_time = time.time()
+            future_transcript = executor.submit(transcribe_audio, audio_file, stt_model)
+
+            speaking_face_row, _, _ = future_face.result()
+            print(f"DETECT SPEAKING FACE EXECUTION TIME : {time.time() - detectface_start_time:.4f} seconds")
+
+            transcript = future_transcript.result()
+            print(f"TRANSCRIPTION EXECUTION TIME : {time.time() - tr_start_time:.4f} seconds")
+
+        os.remove(audio_file)
+    else:
+        audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future_audio_extract = executor.submit(extract_audio, tmp_path, audio_file)
+
+            detectface_start_time = time.time()
+            speaking_face_row, _, _ = detect_speaking_face(tmp_path, save_frames=True)
+            print(f"DETECT SPEAKING FACE EXECUTION TIME : {time.time() - detectface_start_time:.4f} seconds")
+
+            future_audio_extract.result()
+
+        tr_start_time = time.time()
+        transcript = transcribe_audio(audio_file, stt_model)
+        print(f"TRANSCRIPTION EXECUTION TIME : {time.time() - tr_start_time:.4f} seconds")
+        os.remove(audio_file)
+
+    if not speaking_face_row:
+        raise HTTPException(status_code=422, detail="No face detected in the video.")
+
+    transcript_timestamp = datetime.now()
+    timestamped_transcript = timestamp_conversation_content(transcript, transcript_timestamp)
+
+    user_image = speaking_face_row[0]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        emo_start_time = time.time()
+        future_emotion = executor.submit(detect_emotions, speaking_face_row, emotion_model, emotion_processor)
+
+        ur_start_time = time.time()
+        future_user = executor.submit(user_retriever, user_image, None, user_retriever_config, database)
+
+        emotion, _, _, _ = future_emotion.result()
+        print(f"EMOTION DETECTION EXECUTION TIME : {time.time() - emo_start_time:.4f} seconds")
+
+        detected_user, memory_user = future_user.result()
+        print(f"USER RETRIEVER EXECUTION TIME : {time.time() - ur_start_time:.4f} seconds")
+
+    current_user_image = np.array(user_image)
+
+    conn_history = sqlite3.connect(database)
+    try:
+        session_history = get_conversation_history(detected_user, conn_history, LEN_HISTORY)
+    finally:
+        conn_history.close()
+
+    def update_user_memory_stream():
+        start_time = time.time()
+        conn_thread = sqlite3.connect(database)
+        try:
+            new_memory_object = update_memory_llm(timestamped_transcript, conn_thread, detected_user, stm=session_history)
+            global memory_user
+            memory_user = update_memory(new_memory_object, detected_user, conn_thread)
+        finally:
+            conn_thread.close()
+        print(f"MEMORY UPDATE TIME : {time.time() - start_time:.2f} seconds")
+
+    threading.Thread(target=update_user_memory_stream, daemon=True).start()
+
+    visual_profile = {"emotion": emotion, "gender": None, "age": None}
+    dynamic_context = context_files_retriever(transcript, config_data)
+    combined_context = "\n\n".join(filter(None, [current_context, dynamic_context]))
+
+    print(f"COMBINED CONTEXT:\n{combined_context}")
+
+    async def event_generator():
+        yield json.dumps({
+            "type": "info",
+            "detected_user": detected_user,
+            "emotion": emotion,
+            "transcript": transcript,
+        }) + "\n"
+
+        token_queue = queue.Queue()
+        answer_parts = []
+
+        def stream_answer():
+            _conn = sqlite3.connect(database)
+            try:
+                _, stream = generate_answer_stream(
+                    timestamped_transcript, session_history, combined_context,
+                    _conn, detected_user, visual_profile
+                )
+                generation_start_time = time.time()
+                for chunk in stream:
+                    token = chunk.choices[0].delta.content
+                    if token:
+                        answer_parts.append(token)
+                        token_queue.put(token)
+                print(f"GENERATION TIME : {time.time() - generation_start_time:.2f} seconds")
+            except Exception as e:
+                print(f"[process_stream] Streaming error: {e}")
+            finally:
+                _conn.close()
+                token_queue.put(None)  # sentinel
+
+        threading.Thread(target=stream_answer, daemon=True).start()
+
+        loop = asyncio.get_running_loop()
+        while True:
+            item = await loop.run_in_executor(None, token_queue.get)
+            if item is None:
+                break
+            yield json.dumps({"type": "token", "content": item}) + "\n"
+
+        full_answer = "".join(answer_parts)
+        conn_history = sqlite3.connect(database)
+        try:
+            add_conversation_turn(detected_user, transcript, full_answer, conn_history, user_timestamp=transcript_timestamp)
+        finally:
+            conn_history.close()
+
+        print("PROCESS_STREAM ENDPOINT DONE (memory update continues in background)")
+        print(f"PROCESS_STREAM ENDPOINT EXECUTION TIME : {time.time() - endpoint_start_time:.4f} seconds")
+
+        yield json.dumps({"type": "done"}) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+
+
 @app.post("/reset_session")
-async def reset_session():
-    global current_session, html_blocks, current_user_image
-    current_session = []
-    html_blocks = []
+async def reset_session(user_id: str = Form(None)):
+    global current_user_image
     current_user_image = None
+    if user_id:
+        conn = sqlite3.connect(database)
+        try:
+            clear_conversation_history(user_id, conn)
+        finally:
+            conn.close()
     return {"status": "success"}
 
 

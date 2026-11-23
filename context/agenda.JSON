@@ -1,0 +1,59 @@
+{
+  "presences_du_jour": [
+    { "nom": "Alice Morel", "statut": "présente" },
+    { "nom": "Sofia Garcia", "statut": "présente" },
+    { "nom": "Sarah Robin", "statut": "présente" },
+    { "nom": "Nina Petit", "statut": "présente" },
+    { "nom": "Emma Roux", "statut": "absente" },
+    { "nom": "Chloé Mercier", "statut": "présente" },
+    { "nom": "Laura Fontaine", "statut": "présente" },
+    { "nom": "Julie Martin", "statut": "présente" },
+    { "nom": "Thomas Girard", "statut": "présent" },
+    { "nom": "Lucas Renard", "statut": "absent" },
+    { "nom": "Bastien Lopez", "statut": "présent" },
+    { "nom": "Maxime André", "statut": "présent" },
+    { "nom": "Paul Dupont", "statut": "présent" },
+    { "nom": "Sophie Bernard", "statut": "présente" },
+    { "nom": "Camille Lefèvre", "statut": "présente" },
+    { "nom": "Julien Chevalier", "statut": "présent" },
+    { "nom": "Hugo Michel", "statut": "présent" },
+    { "nom": "Élodie Garnier", "statut": "absente" }
+  ],
+  "reunions_du_jour": [
+    {
+      "titre": "Réunion IA Robotique",
+      "heure": "09h-10h",
+      "salle": "Lab Robotique"
+    },
+    {
+      "titre": "Sprint Dev Backend",
+      "heure": "10h-11h",
+      "participants": ["Nina Petit", "Chloé Mercier", "Thomas Girard"]
+    },
+    {
+      "titre": "Sync Data",
+      "heure": "11h-12h",
+      "participants": ["Alice Morel", "Sarah Robin", "Laura Fontaine"]
+    },
+    {
+      "titre": "Démo Produit",
+      "heure": "14h-15h",
+      "salle": "Salle Turing"
+    },
+    {
+      "titre": "Réunion Produit",
+      "heure": "15h-16h",
+      "participants": ["Paul Dupont", "Sophie Bernard"]
+    },
+    {
+      "titre": "Point DevOps",
+      "heure": "16h-17h",
+      "participants": ["Maxime André", "Julie Martin"]
+    },
+    {
+      "titre": "Partenariats Robotique",
+      "heure": "17h-18h",
+      "participants": ["Hugo Michel", "Sofia Garcia", "Bastien Lopez"]
+    }
+  ]
+}

@@ -20,16 +20,17 @@ if not API_KEY:
     print("Please set the OPENAI_API_KEY environment variable if you want to use OpenAI models.")
 
 # Device setup
-DEVICE = 'mps' if torch.backends.mps.is_available() else 'cpu'
+#DEVICE = 'mps' if torch.backends.mps.is_available() else 'cpu'
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f"Using device: {DEVICE}")
 
 ##########
 # Video settings
 ##########
 
 # Frame buffer size
-LEN_FRAME_BUFFER = 15
-FRAME_STRIDE = 3 # Process every n frame to reduce computation
-FILTER_THRESHOLD = 5  # Minimum number of frames to consider a face valid
+LEN_FRAME_BUFFER = 5
+FRAME_STRIDE = 15 # Process every n frame to reduce computation
 
 ##########
 # Conversation settings
@@ -38,3 +39,15 @@ FILTER_THRESHOLD = 5  # Minimum number of frames to consider a face valid
 LEN_HISTORY = 10
 RECOGNITION_THRESHOLD = 0.85  # Distance threshold for user retrieval
 NUM_TOP_FEATURES = 10 # Number of top features to retrieve for context
+
+##########
+# Face detection settings
+##########
+
+FILTER_THRESHOLD = 2
+
+##########
+# User retriever settings
+##########
+
+SIMILARITY_THERESHOLD = 0.4

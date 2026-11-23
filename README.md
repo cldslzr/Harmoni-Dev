@@ -1,212 +1,168 @@
-# Context-aware conversation
+# HARMONI — Context-Aware Conversation
 
-A framework for context-aware, multi-turn conversations with robots.  
-Its goal is to enable robots to dynamically adapt to individuals and groups while respecting ethical and social constraints.
+A framework for context-aware, multi-turn conversations with robots. HARMONI enables embodied conversational agents to dynamically adapt to individuals, conversational contexts, and interaction scenarios, combining perception, user modeling, memory retrieval, and response generation.
+
+## Overview
+
+HARMONI is designed to support natural, context-aware interactions between humans and robots. It combines multimodal perception, user identification, contextual and temporal memory, and language generation to provide responses adapted to the ongoing interaction.
+
+The framework has been updated to improve responsiveness, flexibility, memory retrieval, and ease of deployment, while supporting both live multimodal interaction and manually provided audio/video inputs.
 
 ![System Architecture](documentation/architecture.png)
 
-### Main features
+## Main Features
 
-- **Perception Module:** Interprets video input by extracting spoken questions and identifying the active speaker.
-- **User Modeling Module:** Retrieves and maintains user-specific profiles and long-term memory.
-- **World Modeling Module:** Maintains short-term conversational sessions and retrieves relevant memories linked to the user profiles present in the environment.
-- **Generation Module:** Generates responses conditioned on both the user profile and associated memory, ensuring contextually appropriate and personalized outputs.
+- **Multimodal Perception:** Processes audio and video to transcribe speech, detect faces, extract facial embeddings, and identify the active speaker.
+- **User Modeling:** Retrieves and maintains user-specific profiles and long-term memory using facial embeddings.
+- **Contextual Memory:** Maintains conversational context and retrieves relevant information from past interactions.
+- **Temporal Awareness:** Enables the system to answer time-related questions based on stored information, such as meeting dates, past events, or how a trip went.
+- **Context Adaptation:** Dynamically adapts the system to different interaction scenarios through configurable contexts, such as a reception robot or a hospital kiosk.
+- **Knowledge-Rich Retrieval:** Uses Retrieval-Augmented Generation (RAG) to retrieve information from large amounts of contextual data and answer complex, knowledge-intensive questions efficiently.
+- **Multimodal Interaction:** Supports interactions through local cameras and microphones, as well as manually provided audio and video files.
+- **Parallel Processing:** Runs perception tasks, including audio transcription, face detection, and other processing steps, in parallel to reduce processing time.
+- **Optimized Model Initialization:** Loads and warms up models before the first interaction to reduce initial response latency.
+- **Flexible LLM Selection:** Supports experimentation with different language models to find a balance between response quality and inference speed.
 
-> [!NOTE]  
-> This is a working version, only a subset of features is implemented
+## Work Interfaces
 
-### Work interfaces
+HARMONI provides interfaces to test and interact with the system.
 
-The framework provides several web applications that simulate different aspects of interaction between users and the assistant.  
-These interfaces are useful both for testing and for developing new features.
+### Video Interaction
 
-- [**Chatbox App**](#chatbox-app) (Text-based): 
-  - Users interact with the system through a text chatbox.
-  - Each message is linked to a user, selected by uploading/choosing a picture.
-  - Users are stored in a database that can be modified directly through the app.
-  - Context and session management are supported (start new sessions, reset database).
-    
-- [**Video Interaction App**](#video-interaction-app) (Speaker-based):
-  - Interaction is driven by video input rather than text.
-  - The system identifies the active speaker in the video (assumed to contain one interaction).
-  - The spoken question is transcribed, and both the transcription and system response are shown in a chatbox-like interface.
-  - The same database, context, and session management tools as in the text app are available.
-    
+The video interaction interface supports multimodal interaction with HARMONI through:
+
+- Live video and audio input from a local camera and microphone.
+- Manual submission of audio and video files for processing.
+- Speech transcription and active speaker identification.
+- User identification and retrieval of associated memory.
+- Contextual response generation.
+
+The perception and processing pipeline has been streamlined to reduce unnecessary computation and improve responsiveness.
+
+## Recent Improvements
+
+### General System Improvements
+
+- **Removal of the Web API:** Removed the previous Web API component.
+- **Model Warmup:** Models are loaded and warmed up before the first query, allowing the system to be ready for use and reducing latency during the first interaction.
+- **Parallel Processing:** Parallelized processing tasks, including audio transcription, face detection, and other perception components, to reduce overall processing time.
+- **Temporal Awareness:** Added temporal reasoning capabilities to support questions about events, dates, meetings, trips, and other time-related information.
+- **Dynamic Context Management:** Introduced a context system allowing HARMONI to be configured for different interaction scenarios and environments.
+- **RAG Integration:** Added Retrieval-Augmented Generation to handle large amounts of contextual information and answer complex, knowledge-rich questions more efficiently.
+- **Multimodal Input:** Added support for local PC camera and microphone input, alongside manually provided audio and video files.
+- **LLM Benchmarking:** Evaluated different language models to identify suitable models balancing response quality and inference speed.
+
+### Vision Pipeline Improvements
+
+The vision pipeline has been simplified and optimized, particularly regarding face detection, embedding extraction, and user retrieval.
+
+- **InsightFace Integration:** Replaced the previous model usage with the `FaceAnalysis` interface from InsightFace, allowing face detection and embedding extraction to be handled directly through the same interface.
+- **Model Initialization:** Updated InsightFace initialization in `config/models.py`, specifying providers and allowed modules.
+- **Face-Based User Retrieval:** Simplified user retrieval in `conversation/memory/memory.py` to accept face embeddings directly, avoiding unnecessary image processing.
+- **Video Processing:** Updated `video_interface/app.py` to handle embeddings directly during user retrieval.
+- **Simplified Face Detection:** Removed the previous grid-based detection approach and the additional YOLO-based face detection step.
+- **Code Cleanup:** Removed unused utility functions from `vision/utils.py` and streamlined face detection in `vision/detection.py`.
+- **Improved Speaking Face Identification:** Simplified the active speaker identification logic to return face embeddings and images directly.
+- **Configurable Thresholds:** Added and defined thresholds in configuration and settings files to better control system behavior.
+- **Model Warmup:** Updated the warmup procedure to use an image containing a face rather than a blank image, ensuring that the face-related processing pipeline is properly initialized. A new test image (`test.png`) has been added to `video_interface` for this purpose.
+
+> **Note:** Emotion detection is currently disabled in the vision pipeline.
+
 ## Installation
-  
-1. Clone the repository
+
+### Requirements
+
+- [Docker](https://docs.docker.com/engine/install/)
+- NVIDIA GPU and drivers
+- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+
+### 1. Install Docker
+
+Follow the official instructions for your operating system: https://docs.docker.com/engine/install/
+
+On Arch Linux:
+
+```bash
+sudo pacman -S docker
+sudo systemctl enable --now docker
+```
+
+### 2. Install NVIDIA Container Toolkit
+
+The NVIDIA Container Toolkit allows Docker containers to access your GPU.
+
+On Arch Linux:
+
+```bash
+sudo pacman -S nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker --set-as-default
+sudo systemctl restart docker
+```
+
+### 3. Clone the Repository
+
 ```bash
 git clone git@github.com:MalecotJeanne/Context-aware_Conversation.git
 cd Context-aware_Conversation
 ```
-2. Create and activate a virtual environment (recommended: **Python 3.12**)
-   
-- **On Linux/macOS:**  
-  ```bash
-  python3.12 -m venv venv
-  source venv/bin/activate
-  ```
-- **On Windows:**  
-  ```bash
-  python3.12 -m venv venv
-  venv\Scripts\activate
-  ```
-  
-3. Install dependencies
+
+### 4. Set Up Environment Variables
+
+Create a `.env` file in the project root containing the required API keys:
+
 ```bash
-pip install -r requirements.txt
+HF_TOKEN=your_huggingface_token
+OPENAI_API_KEY=your_openai_api_key
 ```
+
+> **Warning:** Never commit your `.env` file or expose your API keys in version control.
+
+### 5. Build the Docker Image
+
+```bash
+docker build --build-arg HF_TOKEN=your_token_here -t harmoni:latest .
+```
+
+The first build may take several minutes while installing dependencies. Subsequent builds may be faster due to Docker layer caching.
+
+### 6. Run the Container
+
+```bash
+docker run -p 8000:8000 --runtime=nvidia --gpus all --env-file .env -v "$PWD":/app harmoni:latest
+```
+
+Once the container is running, open the interface in your browser:
+
+**http://localhost:8000**
+
+| Flag | Description |
+|---|---|
+| `-p 8000:8000` | Maps the container port 8000 to port 8000 on the host machine. |
+| `--runtime=nvidia` | Uses the NVIDIA container runtime. |
+| `--gpus all` | Provides the container with access to all available GPUs. |
+| `--env-file .env` | Loads environment variables from the `.env` file. |
+| `-v "$PWD":/app` | Mounts the repository into the container. |
+
 ## Configuration
 
-Before running the code, a few adjustments are required to ensure everything works smoothly.
-You’ll need to:
-- Set up the necessary [environment variables](#environment-variables).
-- Choose the appropriate settings to tailor the pipeline to your objectives.
+HARMONI can be adapted to different scenarios through its configuration files.
 
 ### Settings
 
-Some variables can be adjusted in the [settings file](./config/settings.py). These parameters control aspects of the model’s behavior—for example, the tolerance for people recognition or the size of the history remembered by the system.  
+The [`config/settings.py`](./config/settings.py) file contains configurable parameters controlling system behavior, including thresholds and other pipeline settings.
 
-⚠️ Changes should be made with care, as improper adjustments may degrade the system’s performance.
+Changes should be made carefully, as improper settings may affect system performance.
 
-A [config file](./config/config.yaml) in **YAML** format is also available. It allows you to define key aspects of the system’s behavior, such as:
-- The **LLMs** to be used.
-- Important settings for **memory management** (e.g., open vs. closed vocabulary, definitions of features of interest in your scenario).
+### Context and Models
 
-### Models
+The configuration files in the `config` directory allow the system to be adapted to different scenarios and to select the models used throughout the pipeline.
 
-Most of the models used in the pipeline are defined in the [config directory](./config/models.py).  
-You are free to experiment with other models, but if their source differs from the suggested ones, make sure their behavior is compatible—or adjust the code accordingly.
-The [__init__.py](./config/__init__.py) file already includes utilities to switch easily between face embedding models. If you add new models, you may need to extend this file or create similar helper functions for the other model types.
+The models used for perception and generation can be modified to experiment with different approaches and trade-offs between speed and quality.
 
->[!IMPORTANT]
->The LLMs used for generating answers and updating memory are defined in a config file.
->This implementation supports only the **OpenAI Client**, with two options:
->- **OpenAI model** → requires a valid *OpenAI API key*.
->- [**Ollama model**](#using-ollama) → ensure the model has been pulled to your local device.
+## Future Improvements
 
-### Environment variables
+Potential future improvements include:
 
-You will need a *Hugging Face token* and, optionally, an *OpenAI API key*.
-If you don’t already have them set up, create a .env file in the root folder of your project and add the credentials there.
-
-```bash
-touch .env
-```
-
-Then, add the appropriate keys like this:
-- **HuggingFace Token**
-```bash
-echo "HF_TOKEN=your_secret_token_here" >> .env
-```
-- **OpenAI API key**
-```bash
-echo "OPENAI_API_KEY=your_api_key_here" >> .env
-```
-
-### Using OpenAI models
-
-To use an OpenAI model, simply specify its name in the config file.  
-You can check which models are available for your account using either the command line or Python:
-
-- **Command line:**
-```bash
-curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
-```
-
-- **Python:**
-```python
-from openai import OpenAI
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-  client.models.list()
-```
-> [!WARNING]
-> If you use a model that is not on the approved list, the system will **default to using an Ollama model**.
-
-### Using Ollama 
-
-**Ollama** allows you to run LLMs locally without relying on the OpenAI models. To use **Ollama** with this project, follow these steps:
-
-#### **1. Install Ollama**
-  - **On macOS:**  
-    Download and install from the official site: https://ollama.com/download  
-    **or**  
-    Use Homebrew:  
-    ```bash
-    brew install ollama
-    ```
-  - **On Linux:**
-    ```bash
-    curl -fsSL https://ollama.com/install.sh | sh
-    ```
-  - **On Windows:**  
-    Download the installer from the [Ollama website](https://ollama.com/download)
-
-#### **2. Run the Ollama server**
-
-Once installed, start the **Ollama** background service:
-```bash
-ollama serve
-```
-This runs the local server that the client uses to interact with models.  
-On most systems, the service may start automatically—you can check with:
-```bash
-ps aux | grep ollama
-```
-
-#### **3. Pull a model**
-
-Before using a model, you need to pull it to your device. For example, to pull **LLaMA 3**:
-```bash
-ollama pull llama3
-```
-You can show the model already downloaded on your device with:
-```bash
-ollama list
-```
-
-> [!TIP]
-> Test your model quickly by running:
-> ```bash
-> ollama run [model_name]
-> ```
-
-Check the full list of models in the [Ollama model library](https://ollama.com/search)!
-
-## Execution
-
-To run either app, you must be in the root directory.  
-Note that both interfaces share the same configuration files and modules, but use separate databases.
-
-> [!TIP]
-> If the **CSS** of the application doesn’t load correctly, try performing a hard refresh: **Ctrl+Shift+R** (Windows/Linux) or **Cmd+Shift+R** (Mac).
-
-### Chatbox App
-
-To run the chatbox app:
-
-```bash
-uvicorn conv_interface.app:app --reload
-```
-
-![Chatbox Application Architecture](documentation/arch_conv.png)
-
-
-
-### Video Interaction App 
-
-To run the video interaction app:
-
-```bash
-uvicorn video_interface.app:app --reload
-```
-
-![Video Interaction Application Architecture](documentation/arch_appvideo.png)
-
-
-
-
-
-
+- Maintaining multiple face embeddings per person to improve identification robustness.
+- Regularly updating stored embeddings as new interactions occur.
+- Selecting or maintaining the most representative embedding for each person over time.

@@ -11,6 +11,10 @@ def prob_emotions(image, model, processor):
         raise TypeError("Input must be a NumPy array or PIL.Image")
     
     inputs = processor(images=image, return_tensors="pt")
+
+    device = next(model.parameters()).device
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    
     with torch.inference_mode():
         outputs = model(**inputs)
         logits = outputs.logits

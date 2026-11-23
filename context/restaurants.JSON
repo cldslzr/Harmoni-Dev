@@ -1,0 +1,140 @@
+{
+  "restaurants": [
+    {
+      "name": "Deux Restaurant",
+      "category": "Français",
+      "description": "Bistrot moderne très apprécié pour ses produits frais et sa cuisine raffinée",
+      "distance_min": 6,
+      "price_range": "20-70",
+      "hours": "Mar-Sam midi et soir"
+    },
+    {
+      "name": "AMÂLIA Restaurant",
+      "category": "Français gastronomique",
+      "description": "Restaurant étoilé Michelin franco-italien, idéal pour une occasion spéciale",
+      "distance_min": 3,
+      "price_range": "100+",
+      "hours": "Mer-Sam soir, Dim midi/soir"
+    },
+    {
+      "name": "Paname Art Café",
+      "category": "Café / Français",
+      "description": "Café-brasserie arty, parfait pour brunch ou repas détendu",
+      "distance_min": 1,
+      "price_range": "15-25",
+      "hours": "Tous les jours"
+    },
+    {
+      "name": "La Bonne Bière",
+      "category": "Brasserie française",
+      "description": "Grande brasserie parisienne classique avec terrasse et plats généreux",
+      "distance_min": 10,
+      "price_range": "15-30",
+      "hours": "Tous les jours"
+    },
+    {
+      "name": "Kushikatsu Bon",
+      "category": "Japonais",
+      "description": "Spécialiste des kushikatsu d’Osaka dans une ambiance intimiste",
+      "distance_min": 7,
+      "price_range": "60-100",
+      "hours": "Soir uniquement"
+    },
+    {
+      "name": "Kyobashi",
+      "category": "Japonais",
+      "description": "Très bon rapport qualité/prix pour donburi, curry et bentos",
+      "distance_min": 10,
+      "price_range": "10-20",
+      "hours": "Midi et soir tous les jours"
+    },
+    {
+      "name": "Jinchan Yokocho",
+      "category": "Japonais (izakaya)",
+      "description": "Ambiance yokocho avec yakitori et petits plats japonais",
+      "distance_min": 8,
+      "price_range": "15-30",
+      "hours": "Midi et soir"
+    },
+    {
+      "name": "In Korea",
+      "category": "Coréen",
+      "description": "Cuisine coréenne familiale très bien notée avec portions généreuses",
+      "distance_min": 9,
+      "price_range": "20-30",
+      "hours": "Midi et soir tous les jours"
+    },
+    {
+      "name": "Kimbap",
+      "category": "Coréen",
+      "description": "Petite adresse casual spécialisée dans les kimbap",
+      "distance_min": 13,
+      "price_range": "10-20",
+      "hours": "Midi et soir sauf dimanche soir"
+    },
+    {
+      "name": "Soya",
+      "category": "Végétarien / Vegan",
+      "description": "Institution veggie bio avec ambiance zen et brunch populaire",
+      "distance_min": 8,
+      "price_range": "20-30",
+      "hours": "Midi et soir"
+    },
+    {
+      "name": "Aujourd'hui Demain",
+      "category": "Végétarien / Vegan",
+      "description": "Café-resto moderne avec pâtisseries et comfort food vegan",
+      "distance_min": 14,
+      "price_range": "15-30",
+      "hours": "11h-23h"
+    },
+    {
+      "name": "Tasty Crousty",
+      "category": "Fast-food",
+      "description": "Burgers, wraps et sandwiches populaires ouverts très tard",
+      "distance_min": 11,
+      "price_range": "1-10",
+      "hours": "11h30-1h45"
+    },
+    {
+      "name": "Melt Oberkampf",
+      "category": "Fast-food / BBQ",
+      "description": "BBQ texan et viande fumée maison très apprécié",
+      "distance_min": 9,
+      "price_range": "15-30",
+      "hours": "Midi et soir"
+    },
+    {
+      "name": "Boulangerie Polka",
+      "category": "Boulangerie",
+      "description": "Boulangerie artisanale réputée pour ses viennoiseries et pains",
+      "distance_min": 6,
+      "price_range": "1-10",
+      "hours": "Dès 8h"
+    },
+    {
+      "name": "Boulangerie Utopie",
+      "category": "Boulangerie",
+      "description": "Boulangerie culte connue pour ses créations originales",
+      "distance_min": 5,
+      "price_range": "1-15",
+      "hours": "7h-20h (fermé lun)"
+    },
+    {
+      "name": "O'Riz Blanc",
+      "category": "Asiatique fusion",
+      "description": "Cantine asiatique très bien notée avec plats parfumés",
+      "distance_min": 12,
+      "price_range": "10-20",
+      "hours": "Midi et soir"
+    },
+    {
+      "name": "Gros Bao",
+      "category": "Asiatique (chinois)",
+      "description": "Restaurant tendance pour bao et dim sum dans une ambiance animée",
+      "distance_min": 14,
+      "price_range": "15-30",
+      "hours": "Midi et soir"
+    }
+  ]
+}

@@ -1,0 +1,276 @@
+{
+  "entreprise": "Enchanted Tools",
+  "localisation": "Paris - Bâtiment unique (5 étages)",
+  "employes": [
+    {
+      "prenom": "Alice",
+      "nom": "Morel",
+      "joursTravail": {
+        "Lundi": "Bureau",
+        "Mardi": "Télétravail",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "09:00-17:30",
+      "localisationBureau": "Étage 5 - Laboratoire Robotique",
+      "departement": "IA & Robotique",
+      "poste": "Ingénieure en IA"
+    },
+    {
+      "prenom": "Sofia",
+      "nom": "Garcia",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Bureau",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "09:30-18:00",
+      "localisationBureau": "Étage 5 - Laboratoire Robotique",
+      "departement": "IA & Robotique",
+      "poste": "Ingénieure en robotique"
+    },
+    {
+      "prenom": "Sarah",
+      "nom": "Robin",
+      "joursTravail": {
+        "Lundi": "Bureau",
+        "Mardi": "Télétravail",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "09:00-17:30",
+      "localisationBureau": "Étage 5 - Laboratoire Robotique",
+      "departement": "Data",
+      "poste": "Data Scientist"
+    },
+    {
+      "prenom": "Nina",
+      "nom": "Petit",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Télétravail",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "10:00-18:30",
+      "localisationBureau": "Étage 4 - Développement",
+      "departement": "Logiciel",
+      "poste": "Développeuse Backend"
+    },
+    {
+      "prenom": "Emma",
+      "nom": "Roux",
+      "joursTravail": {
+        "Lundi": "Bureau",
+        "Mardi": "Bureau",
+        "Mercredi": "Télétravail",
+        "Jeudi": "Bureau",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "09:00-17:30",
+      "localisationBureau": "Étage 4 - Développement",
+      "departement": "Logiciel",
+      "poste": "Développeuse Frontend"
+    },
+    {
+      "prenom": "Chloé",
+      "nom": "Mercier",
+      "joursTravail": {
+        "Lundi": "Bureau",
+        "Mardi": "Bureau",
+        "Mercredi": "Bureau",
+        "Jeudi": "Télétravail",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "09:30-18:00",
+      "localisationBureau": "Étage 4 - Développement",
+      "departement": "Logiciel",
+      "poste": "Développeuse Backend"
+    },
+    {
+      "prenom": "Laura",
+      "nom": "Fontaine",
+      "joursTravail": {
+        "Lundi": "Bureau",
+        "Mardi": "Télétravail",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "09:00-17:30",
+      "localisationBureau": "Étage 4 - Développement",
+      "departement": "Data",
+      "poste": "Data Engineer"
+    },
+    {
+      "prenom": "Julie",
+      "nom": "Martin",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Bureau",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "08:30-17:00",
+      "localisationBureau": "Étage 1 - IT",
+      "departement": "Infrastructure",
+      "poste": "Administratrice systèmes"
+    },
+    {
+      "prenom": "Thomas",
+      "nom": "Girard",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Bureau",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "09:00-18:00",
+      "localisationBureau": "Étage 4 - Développement",
+      "departement": "Logiciel",
+      "poste": "Développeur Backend"
+    },
+    {
+      "prenom": "Lucas",
+      "nom": "Renard",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Télétravail",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "08:30-17:00",
+      "localisationBureau": "Étage 5 - Laboratoire Robotique",
+      "departement": "Mécanique",
+      "poste": "Ingénieur robotique"
+    },
+    {
+      "prenom": "Bastien",
+      "nom": "Lopez",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Bureau",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "09:00-17:00",
+      "localisationBureau": "Étage 5 - Laboratoire Robotique",
+      "departement": "IA",
+      "poste": "Ingénieur Machine Learning"
+    },
+    {
+      "prenom": "Maxime",
+      "nom": "André",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Télétravail",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "08:30-16:30",
+      "localisationBureau": "Étage 4 - Développement",
+      "departement": "DevOps",
+      "poste": "Ingénieur DevOps"
+    },
+    {
+      "prenom": "Paul",
+      "nom": "Dupont",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Bureau",
+        "Mercredi": "Bureau",
+        "Jeudi": "Télétravail",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "10:00-18:00",
+      "localisationBureau": "Étage 3 - Produit",
+      "departement": "Produit",
+      "poste": "Product Owner"
+    },
+    {
+      "prenom": "Sophie",
+      "nom": "Bernard",
+      "joursTravail": {
+        "Lundi": "Bureau",
+        "Mardi": "Bureau",
+        "Mercredi": "Bureau",
+        "Jeudi": "Télétravail",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "09:00-17:00",
+      "localisationBureau": "Étage 3 - Produit",
+      "departement": "Produit",
+      "poste": "Product Manager"
+    },
+    {
+      "prenom": "Camille",
+      "nom": "Lefèvre",
+      "joursTravail": {
+        "Lundi": "Bureau",
+        "Mardi": "Bureau",
+        "Mercredi": "Télétravail",
+        "Jeudi": "Télétravail",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "10:00-18:30",
+      "localisationBureau": "Étage 4 - Développement",
+      "departement": "Logiciel",
+      "poste": "Développeuse Frontend"
+    },
+    {
+      "prenom": "Julien",
+      "nom": "Chevalier",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Télétravail",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "11:00-19:00",
+      "localisationBureau": "Étage 1 - Sécurité",
+      "departement": "Cybersécurité",
+      "poste": "Analyste sécurité"
+    },
+    {
+      "prenom": "Hugo",
+      "nom": "Michel",
+      "joursTravail": {
+        "Lundi": "Télétravail",
+        "Mardi": "Bureau",
+        "Mercredi": "Bureau",
+        "Jeudi": "Bureau",
+        "Vendredi": "Télétravail"
+      },
+      "horairesDisponibilite": "10:00-18:30",
+      "localisationBureau": "Étage 2 - Business",
+      "departement": "Business",
+      "poste": "Responsable partenariats"
+    },
+    {
+      "prenom": "Élodie",
+      "nom": "Garnier",
+      "joursTravail": {
+        "Lundi": "Bureau",
+        "Mardi": "Bureau",
+        "Mercredi": "Télétravail",
+        "Jeudi": "Télétravail",
+        "Vendredi": "Bureau"
+      },
+      "horairesDisponibilite": "08:30-16:30",
+      "localisationBureau": "Étage 2 - Marketing",
+      "departement": "Marketing",
+      "poste": "Responsable marketing"
+    }
+  ]
+}
