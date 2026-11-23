@@ -51,6 +51,7 @@ The perception and processing pipeline has been streamlined to reduce unnecessar
 - **RAG Integration:** Added Retrieval-Augmented Generation to handle large amounts of contextual information and answer complex, knowledge-rich questions more efficiently.
 - **Multimodal Input:** Added support for local PC camera and microphone input, alongside manually provided audio and video files.
 - **LLM Benchmarking:** Evaluated different language models to identify suitable models balancing response quality and inference speed.
+- **Inference Performances:** On a laptop with an Intel Core i7-10875H and a Quadro RTX 4000, the entire pipeline takes approximately 1.1 to 1.7 sec.
 
 ### Vision Pipeline Improvements
 
